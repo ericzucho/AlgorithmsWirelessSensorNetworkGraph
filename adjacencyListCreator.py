@@ -3,6 +3,7 @@ import random
 import numpy as np
 import matplotlib.pyplot as plt
 import pylab
+import collections
 
 class Point(object):
     '''Creates a point on a coordinate plane with values x and y.'''
@@ -94,6 +95,42 @@ def initialize_points(sensors, disk):
         return initialize_points_square(sensors)
 
 
+def print_part_1_output(sensors, number_of_edges, radius, real_average_degree):
+    print("Sensors: " + str(sensors))
+    print("Number of distinct pairwise sensor adjacencies: " + str(number_of_edges/2))
+    print("Distance bound for adjacency: " + str(radius))
+    print("Average degree: " + str(real_average_degree))
+
+
+def order_vertices_smallest_last(degree_list):
+    smallest_last_vertex_ordering = []
+    degree_list_ordered = collections.OrderedDict(sorted(degree_list.items()))
+    while len(degree_list_ordered) > 0:
+        #Get the first point from the ordered degree list.
+        point = degree_list_ordered.items()[0][1][0]
+        #Insert it into the smallest last degree list
+        smallest_last_vertex_ordering.append(point)
+        #Delete it from the ordered degree list
+        del degree_list_ordered.items()[0][1][0]
+        #Delete the whole key if it no longer has values
+        if len(degree_list_ordered.items()[0][1]) == 0:
+            del degree_list_ordered[point.get_degree()]
+        #Reduce de degree of all adjacent points by one.
+        for adjacent_point in point.get_adjacent_points():
+            degree_list_ordered[adjacent_point.get_degree()].remove(adjacent_point)
+            if len(degree_list_ordered[adjacent_point.get_degree()]) == 0:
+                del degree_list_ordered[adjacent_point.get_degree()]
+            if adjacent_point.get_degree() - 1 in degree_list_ordered:
+                degree_list_ordered[adjacent_point.get_degree() - 1].append(adjacent_point)
+            else:
+                degree_list_ordered[adjacent_point.get_degree() - 1] = []
+                degree_list_ordered[adjacent_point.get_degree() - 1].append(adjacent_point)
+            adjacent_point.degree -= 1
+            adjacent_point.adjacent_points.remove(point)
+    return smallest_last_vertex_ordering
+
+
+
 def create_adjacency_list_with(disk,sensors,radius,name):
     points = initialize_points(sensors, disk)
     xs = [p.get_X() for p in points]
@@ -102,6 +139,7 @@ def create_adjacency_list_with(disk,sensors,radius,name):
     plt.savefig(name + '_sensor_plot.png')
     number_of_edges = 0
     degree_frequency_dictionary = {}
+    degree_list = {}
     points.sort(key=lambda p: p.get_X(), reverse=True)
     for point in points:
         #Uses the sweep method
@@ -110,8 +148,11 @@ def create_adjacency_list_with(disk,sensors,radius,name):
         number_of_edges += point.get_degree()
         if point.get_degree() in degree_frequency_dictionary:
             degree_frequency_dictionary[point.get_degree()] += 1
+            degree_list[point.get_degree()].append(point)
         else:
             degree_frequency_dictionary[point.get_degree()] = 1
+            degree_list[point.get_degree()] = []
+            degree_list[point.get_degree()].append(point)
     real_average_degree = float(number_of_edges) / len(points)
     frequencies = np.arange(len(degree_frequency_dictionary))
     plt.clf()
@@ -119,7 +160,10 @@ def create_adjacency_list_with(disk,sensors,radius,name):
     plt.xticks(frequencies, degree_frequency_dictionary.keys())
     plt.ylim(0, max(degree_frequency_dictionary.values()) + 1)
     plt.savefig(name + '_degree_histogram.png')
-    print(points)
+    print_part_1_output(sensors,number_of_edges,radius,real_average_degree)
+
+    smallest_last_vertex_ordering = order_vertices_smallest_last(degree_list)
+    print (smallest_last_vertex_ordering)
 
 
 def create_adjacency_list():
