@@ -155,12 +155,23 @@ def order_vertices_smallest_last(degree_list,name):
     return smallest_last_vertex_ordering
 
 
-def color_points(smallest_last_vertex_ordering,original_point_adjacency_list,nodes):
-    colors = [0]
+def color_points(smallest_last_vertex_ordering,original_point_adjacency_list,nodes,colors,name):
     smallest_last_vertex_ordering[nodes-1].color = 0
-    for point in reversed(smallest_last_vertex_ordering[:nodes-2]):
+    for point in reversed(smallest_last_vertex_ordering[:nodes-1]):
         point_original = next(i for i in original_point_adjacency_list if i.get_ID() == point.get_ID())
         point = try_to_put_point_color(0,point,point_original,colors)
+    color_frequency_dictionary = {}
+    for point in original_point_adjacency_list:
+        if point.get_color() in color_frequency_dictionary:
+            color_frequency_dictionary[point.get_color()] += 1
+        else:
+            color_frequency_dictionary[point.get_color()] = 1
+    plt.clf()
+    frequencies = np.arange(len(color_frequency_dictionary))
+    plt.bar(frequencies, color_frequency_dictionary.values(), align='center', width=0.5)
+    plt.xticks(frequencies, color_frequency_dictionary.keys())
+    plt.ylim(0, max(color_frequency_dictionary.values()) + 1)
+    plt.savefig(name + '_color_frequency.png')
 
 
 def try_to_put_point_color(candidate_color,point,point_original,colors):
@@ -203,7 +214,6 @@ def create_adjacency_list_with(disk,sensors,radius,name):
         degree_list[point.get_degree()].append(point)
     real_average_degree = float(number_of_edges) / len(points)
     frequencies = np.arange(len(degree_frequency_dictionary))
-    #color = []
     fig= plt.gcf()
     ax = plt.gca()
     for point in points:
@@ -227,10 +237,10 @@ def create_adjacency_list_with(disk,sensors,radius,name):
 
     smallest_last_vertex_ordering = order_vertices_smallest_last(degree_list,name)
     for point in points:
-        #Uses the sweep method
         point.adjacent_points = []
         point.set_adjacent_points_and_degree(points, radius)
-    colored_points = color_points(smallest_last_vertex_ordering,points,sensors)
+    colors = [0]
+    colored_points = color_points(smallest_last_vertex_ordering,points,sensors,colors,name)
     print (smallest_last_vertex_ordering)
 
 
