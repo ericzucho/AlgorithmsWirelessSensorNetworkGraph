@@ -1,3 +1,4 @@
+import copy
 import math
 import random
 import numpy as np
@@ -16,6 +17,7 @@ class Point(object):
         self.ID = id
         self.degree = 0
         self.adjacent_points = []
+        self.color = -1
 
     def __str__(self):
         return "Point %s: %s"%(self.ID,[p.get_ID() for p in self.adjacent_points])
@@ -55,7 +57,8 @@ class Point(object):
                 point.adjacent_points.append(self)
                 point.degree += 1
 
-
+    def get_color(self):
+        return self.color
 
 def get_radius_from_average_degree(average_degree,sensors,disk):
     if disk:
@@ -95,19 +98,30 @@ def initialize_points(sensors, disk):
         return initialize_points_square(sensors)
 
 
-def print_part_1_output(sensors, number_of_edges, radius, real_average_degree):
+def print_part_1_output(sensors, number_of_edges, radius, real_average_degree,min_degree,max_degree):
     print("Sensors: " + str(sensors))
     print("Number of distinct pairwise sensor adjacencies: " + str(number_of_edges/2))
     print("Distance bound for adjacency: " + str(radius))
     print("Average degree: " + str(real_average_degree))
+    print("Minimum degree: " + str(min_degree))
+    print("Maximum degree: " + str(max_degree))
 
 
-def order_vertices_smallest_last(degree_list):
+def order_vertices_smallest_last(degree_list,name):
     smallest_last_vertex_ordering = []
+    degree_when_deleted_dictionary = {}
+    max_degree_when_deleted = -99999
     degree_list_ordered = collections.OrderedDict(sorted(degree_list.items()))
     while len(degree_list_ordered) > 0:
         #Get the first point from the ordered degree list.
         point = degree_list_ordered.items()[0][1][0]
+        #Fill in the dictionary for the graph
+        if point.get_degree() in degree_when_deleted_dictionary:
+            degree_when_deleted_dictionary[point.get_degree()] += 1
+        else:
+            degree_when_deleted_dictionary[point.get_degree()] = 1
+        if point.get_degree() > max_degree_when_deleted:
+            max_degree_when_deleted = point.get_degree()
         #Insert it into the smallest last degree list
         smallest_last_vertex_ordering.append(point)
         #Delete it from the ordered degree list
@@ -127,42 +141,96 @@ def order_vertices_smallest_last(degree_list):
                 degree_list_ordered[adjacent_point.get_degree() - 1].append(adjacent_point)
             adjacent_point.degree -= 1
             adjacent_point.adjacent_points.remove(point)
+
+    #Save plot
+    degrees_when_deleted = np.arange(len(degree_when_deleted_dictionary))
+    plt.clf()
+    plt.bar(degrees_when_deleted, degree_when_deleted_dictionary.values(), align='center', width=0.5)
+    plt.xticks(degrees_when_deleted, degree_when_deleted_dictionary.keys())
+    plt.ylim(0, max(degree_when_deleted_dictionary.values()) + 1)
+    plt.savefig(name + '_degree_when_deleted.png')
+
+    print("Maximum degree when deleted: " + str(max_degree_when_deleted))
+
     return smallest_last_vertex_ordering
 
+
+def color_points(smallest_last_vertex_ordering,original_point_adjacency_list,nodes):
+    colors = [0]
+    smallest_last_vertex_ordering[nodes-1].color = 0
+    for point in reversed(smallest_last_vertex_ordering[:nodes-2]):
+        point_original = next(i for i in original_point_adjacency_list if i.get_ID() == point.get_ID())
+        point = try_to_put_point_color(0,point,point_original,colors)
+
+
+def try_to_put_point_color(candidate_color,point,point_original,colors):
+    this_color_viable = True
+    for adjacent_point in point_original.get_adjacent_points():
+        if adjacent_point.get_color() != -1 and adjacent_point.get_color() == candidate_color:
+            this_color_viable = False
+            if candidate_color == len(colors) - 1:
+                colors.append(candidate_color+1)
+                point.color = candidate_color + 1
+            else:
+                point = try_to_put_point_color(candidate_color+1,point,point_original,colors)
+    if this_color_viable:
+        point.color = candidate_color
+    return point
 
 
 def create_adjacency_list_with(disk,sensors,radius,name):
     points = initialize_points(sensors, disk)
-    xs = [p.get_X() for p in points]
-    ys = [p.get_Y() for p in points]
-    plt.scatter(xs, ys)
-    plt.savefig(name + '_sensor_plot.png')
     number_of_edges = 0
     degree_frequency_dictionary = {}
     degree_list = {}
     points.sort(key=lambda p: p.get_X(), reverse=True)
+    min_degree = 999999
+    max_degree = -999999
     for point in points:
         #Uses the sweep method
         point.set_adjacent_points_and_degree(points, radius)
     for point in points:
         number_of_edges += point.get_degree()
+        if point.get_degree() > max_degree:
+            max_degree = point.get_degree()
+        if point.get_degree() < min_degree:
+            min_degree = point.get_degree()
         if point.get_degree() in degree_frequency_dictionary:
             degree_frequency_dictionary[point.get_degree()] += 1
-            degree_list[point.get_degree()].append(point)
         else:
             degree_frequency_dictionary[point.get_degree()] = 1
             degree_list[point.get_degree()] = []
-            degree_list[point.get_degree()].append(point)
+        degree_list[point.get_degree()].append(point)
     real_average_degree = float(number_of_edges) / len(points)
     frequencies = np.arange(len(degree_frequency_dictionary))
+    #color = []
+    fig= plt.gcf()
+    ax = plt.gca()
+    for point in points:
+        if point.get_degree() == min_degree or point.get_degree() == max_degree:
+            ax.add_artist(plt.Circle((point.get_X(), point.get_Y()), radius, color='black', fill=False))
+        if point.get_degree() == min_degree:
+            color = 'y'
+        else:
+            if point.get_degree() == max_degree:
+                color = 'r'
+            else:
+                color = 'b'
+        plt.scatter([point.get_X()],[point.get_Y()],color=color)
+    fig.savefig(name + '_sensor_plot.png')
     plt.clf()
     plt.bar(frequencies, degree_frequency_dictionary.values(), align='center', width=0.5)
     plt.xticks(frequencies, degree_frequency_dictionary.keys())
     plt.ylim(0, max(degree_frequency_dictionary.values()) + 1)
     plt.savefig(name + '_degree_histogram.png')
-    print_part_1_output(sensors,number_of_edges,radius,real_average_degree)
+    print_part_1_output(sensors,number_of_edges,radius,real_average_degree,min_degree,max_degree)
 
-    smallest_last_vertex_ordering = order_vertices_smallest_last(degree_list)
+    smallest_last_vertex_ordering = order_vertices_smallest_last(degree_list,name)
+    for point in points:
+        #Uses the sweep method
+        point.adjacent_points = []
+        point.set_adjacent_points_and_degree(points, radius)
+    colored_points = color_points(smallest_last_vertex_ordering,points,sensors)
     print (smallest_last_vertex_ordering)
 
 
