@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pylab
 import collections
+import operator
 
 class Point(object):
     '''Creates a point on a coordinate plane with values x and y.'''
@@ -42,6 +43,11 @@ class Point(object):
         dx = self.X - other.X
         dy = self.Y - other.Y
         return math.hypot(dx, dy)
+
+    def copy_point(self):
+        p = Point(self.get_ID(),self.get_X(),self.get_Y())
+        p.color = self.color
+        return p
 
     def is_inside_unit_circle(self):
         return math.pow(self.X - 1,2) + math.pow(self.Y - 1,2) < 1
@@ -88,7 +94,6 @@ def initialize_points_square(sensors):
         point = Point(current_sensor,x,y)
         sensors_array.append(point)
     return sensors_array
-
 
 
 def initialize_points(sensors, disk):
@@ -155,24 +160,26 @@ def order_vertices_smallest_last(degree_list,name):
     return smallest_last_vertex_ordering
 
 
-def color_points(smallest_last_vertex_ordering,original_point_adjacency_list,nodes,colors,name):
+def color_points(smallest_last_vertex_ordering,original_point_adjacency_list,nodes,colors,name,color_frequency_dictionary,color_dictionary):
     smallest_last_vertex_ordering[nodes-1].color = 0
     for point in reversed(smallest_last_vertex_ordering[:nodes-1]):
         point_original = next(i for i in original_point_adjacency_list if i.get_ID() == point.get_ID())
         point = try_to_put_point_color(0,point,point_original,colors)
-    color_frequency_dictionary = {}
     for point in original_point_adjacency_list:
         if point.get_color() in color_frequency_dictionary:
             color_frequency_dictionary[point.get_color()] += 1
+            color_dictionary[point.get_color()].append(point)
         else:
             color_frequency_dictionary[point.get_color()] = 1
+            color_dictionary[point.get_color()] = []
+            color_dictionary[point.get_color()].append(point)
+
     plt.clf()
     frequencies = np.arange(len(color_frequency_dictionary))
     plt.bar(frequencies, color_frequency_dictionary.values(), align='center', width=0.5)
     plt.xticks(frequencies, color_frequency_dictionary.keys())
     plt.ylim(0, max(color_frequency_dictionary.values()) + 1)
     plt.savefig(name + '_color_frequency.png')
-
 
 def try_to_put_point_color(candidate_color,point,point_original,colors):
     this_color_viable = True
@@ -187,6 +194,87 @@ def try_to_put_point_color(candidate_color,point,point_original,colors):
     if this_color_viable:
         point.color = candidate_color
     return point
+
+def depth_first_search(points,initial_point_id,seen=None,path=None):
+    point_object = next((x for x in points if x.get_ID() == initial_point_id), None)
+    if seen is None: seen = []
+    if path is None: path = [point_object]
+
+    seen.append(initial_point_id)
+
+    paths = []
+    for adjacent_point in point_object.adjacent_points:
+        if adjacent_point.get_ID() not in seen:
+            t_path = path + [adjacent_point]
+            paths.append(tuple(t_path))
+            paths.extend(depth_first_search(points, adjacent_point.get_ID(), seen, t_path))
+    return paths
+
+def plot_backbone(backbone,problem_name,backbone_name):
+    plt.clf()
+    fig= plt.gcf()
+    ax = plt.gca()
+    starting_point = backbone[0]
+    initial_color = starting_point.get_color()
+    plt.scatter([starting_point.get_X()],[starting_point.get_Y()],color='b')
+    for point in backbone[1:]:
+        if point.get_color() == initial_color:
+            plt.scatter([point.get_X()],[point.get_Y()],color='b')
+        else:
+            plt.scatter([point.get_X()],[point.get_Y()],color='r')
+        for adjacent_point in point.adjacent_points:
+            if any(subgraph_item.get_ID() == adjacent_point.get_ID() for subgraph_item in backbone):
+                plt.plot([point.get_X(), adjacent_point.get_X()], [point.get_Y(), adjacent_point.get_Y()], color='k', linestyle='-', linewidth=1)
+    plt.ylim(0, 1.1)
+    plt.xlim(0, 1.1)
+    fig.savefig(problem_name + '_'+backbone_name+'.png')
+
+def find_backbones(color_dictionary,color_frequency_dictionary,name):
+    sorted_colors =  sorted(color_frequency_dictionary.items(), key=operator.itemgetter(1),reverse=True)
+    largest_backbone = []
+    second_largest_backbone = []
+    largest_backbone_size = -99999
+    second_largest_backbone_size = -99999
+
+    for i, (color1, color1frequency) in enumerate(sorted_colors[:4]):
+        for j, (color2, color2frequency) in enumerate(sorted_colors[:4]):
+            if color1 == color2:
+                continue
+            if color2 > color1:
+                continue
+            subgraph = []
+            for point in color_dictionary[color1]:
+                point_copy = point.copy_point()
+                for adjacent_point in point.adjacent_points:
+                    if adjacent_point.get_color() == color2:
+                        if  any(subgraph_item.get_ID() == adjacent_point.get_ID() for subgraph_item in subgraph):
+                            previously_copied_point = next((x for x in subgraph if x.get_ID() == adjacent_point.get_ID()), None)
+                            previously_copied_point.adjacent_points.append(point_copy)
+                            point_copy.adjacent_points.append(previously_copied_point)
+                        else:
+                            adjacent_point_copy = adjacent_point.copy_point()
+                            adjacent_point_copy.adjacent_points.append(point_copy)
+                            point_copy.adjacent_points.append(adjacent_point_copy)
+                            subgraph.append(adjacent_point_copy)
+                subgraph.append(point_copy)
+            all_backbones = []
+            for start_possibility in subgraph:
+                for path in depth_first_search(subgraph, start_possibility.get_ID()):
+                    all_backbones.append(path)
+            largest_backbone_this_iteration  = max(all_backbones, key=lambda l: len(l))
+            if len(largest_backbone_this_iteration) > largest_backbone_size:
+                second_largest_backbone_size = largest_backbone_size
+                second_largest_backbone = largest_backbone
+                largest_backbone_size = len(largest_backbone_this_iteration)
+                largest_backbone = largest_backbone_this_iteration
+            else:
+                if len(largest_backbone_this_iteration) > second_largest_backbone_size:
+                    second_largest_backbone_size = len(largest_backbone_this_iteration)
+                    second_largest_backbone = largest_backbone_this_iteration
+    plot_backbone(largest_backbone,name,"largest_backbone")
+    plot_backbone(second_largest_backbone,name,"second_largest_backbone")
+
+
 
 
 def create_adjacency_list_with(disk,sensors,radius,name):
@@ -240,8 +328,12 @@ def create_adjacency_list_with(disk,sensors,radius,name):
         point.adjacent_points = []
         point.set_adjacent_points_and_degree(points, radius)
     colors = [0]
-    colored_points = color_points(smallest_last_vertex_ordering,points,sensors,colors,name)
-    print (smallest_last_vertex_ordering)
+    color_frequency_dictionary = {}
+    color_dictionary = {}
+    colored_points = color_points(smallest_last_vertex_ordering,points,sensors,colors,name,color_frequency_dictionary,color_dictionary)
+
+    backbones = find_backbones(color_dictionary,color_frequency_dictionary,name)
+    print (colored_points)
 
 
 def create_adjacency_list():
@@ -272,6 +364,7 @@ def execute_benchmark_case(disk,sensors,average_degree,name):
 
 if __name__ == '__main__':
     #create_adjacency_list()
+    #execute_benchmark_case(False,20,3,"benchmark0")
     execute_benchmark_case(False,1000,32,"benchmark1")
     #execute_benchmark_case(False,4000,64,"benchmark2")
     #execute_benchmark_case(False,16000,64,"benchmark3")
