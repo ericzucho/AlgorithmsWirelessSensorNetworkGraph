@@ -1,9 +1,8 @@
-import copy
+from __future__ import division
 import math
 import random
 import numpy as np
 import matplotlib.pyplot as plt
-import pylab
 import collections
 import operator
 
@@ -180,6 +179,8 @@ def color_points(smallest_last_vertex_ordering,original_point_adjacency_list,nod
     plt.xticks(frequencies, color_frequency_dictionary.keys())
     plt.ylim(0, max(color_frequency_dictionary.values()) + 1)
     plt.savefig(name + '_color_frequency.png')
+    print("Amount of colors: " + str(len(colors)))
+    print("Largest color class size: " + str(max(color_frequency_dictionary.values())))
 
 def try_to_put_point_color(candidate_color,point,point_original,colors):
     this_color_viable = True
@@ -210,31 +211,44 @@ def depth_first_search(points,initial_point_id,seen=None,path=None):
             paths.extend(depth_first_search(points, adjacent_point.get_ID(), seen, t_path))
     return paths
 
-def plot_backbone(backbone,problem_name,backbone_name):
+def plot_backbone(backbone,problem_name,backbone_name,sensors):
     plt.clf()
     fig= plt.gcf()
     ax = plt.gca()
     starting_point = backbone[0]
     initial_color = starting_point.get_color()
     plt.scatter([starting_point.get_X()],[starting_point.get_Y()],color='b')
+    vertices = 1
+    edges = []
+    edges_count = 0
     for point in backbone[1:]:
+        vertices = vertices + 1
         if point.get_color() == initial_color:
             plt.scatter([point.get_X()],[point.get_Y()],color='b')
         else:
             plt.scatter([point.get_X()],[point.get_Y()],color='r')
         for adjacent_point in point.adjacent_points:
-            if any(subgraph_item.get_ID() == adjacent_point.get_ID() for subgraph_item in backbone):
+            if any(subgraph_item.get_ID() == adjacent_point.get_ID() for subgraph_item in backbone) and not ({point.get_ID(),adjacent_point.get_ID()} in edges or {adjacent_point.get_ID(),point.get_ID()} in edges ):
                 plt.plot([point.get_X(), adjacent_point.get_X()], [point.get_Y(), adjacent_point.get_Y()], color='k', linestyle='-', linewidth=1)
+                edges_count = edges_count + 1
+                edges.append({adjacent_point.get_ID(),point.get_ID()})
+    print("Number of vertices: " +str(vertices))
+    print("Number of edges: " +str(edges_count))
+    print("Domination: " + "{0:.2f}".format(vertices/sensors * 100)+ "%")
     plt.ylim(0, 1.1)
     plt.xlim(0, 1.1)
     fig.savefig(problem_name + '_'+backbone_name+'.png')
 
-def find_backbones(color_dictionary,color_frequency_dictionary,name):
+def find_backbones(color_dictionary,color_frequency_dictionary,name,sensors):
     sorted_colors =  sorted(color_frequency_dictionary.items(), key=operator.itemgetter(1),reverse=True)
     largest_backbone = []
     second_largest_backbone = []
     largest_backbone_size = -99999
     second_largest_backbone_size = -99999
+    largest_backbone_color_1 = -1
+    largest_backbone_color_2 = -1
+    second_largest_backbone_color_1 = -1
+    second_largest_backbone_color_2 = -1
 
     for i, (color1, color1frequency) in enumerate(sorted_colors[:4]):
         for j, (color2, color2frequency) in enumerate(sorted_colors[:4]):
@@ -267,12 +281,24 @@ def find_backbones(color_dictionary,color_frequency_dictionary,name):
                 second_largest_backbone = largest_backbone
                 largest_backbone_size = len(largest_backbone_this_iteration)
                 largest_backbone = largest_backbone_this_iteration
+                second_largest_backbone_color_1 = largest_backbone_color_1
+                second_largest_backbone_color_2 = largest_backbone_color_2
+                largest_backbone_color_1 = color1
+                largest_backbone_color_2 = color2
             else:
                 if len(largest_backbone_this_iteration) > second_largest_backbone_size:
                     second_largest_backbone_size = len(largest_backbone_this_iteration)
                     second_largest_backbone = largest_backbone_this_iteration
-    plot_backbone(largest_backbone,name,"largest_backbone")
-    plot_backbone(second_largest_backbone,name,"second_largest_backbone")
+                    second_largest_backbone_color_1 = color1
+                    second_largest_backbone_color_2 = color2
+    print("---Largest backbone---")
+    print("Colors: " + str(largest_backbone_color_1) +", " + str(largest_backbone_color_2))
+    plot_backbone(largest_backbone,name,"largest_backbone",sensors)
+    print("---Second largest backbone---")
+    print("Colors: " + str(second_largest_backbone_color_1) +", " + str(second_largest_backbone_color_2))
+
+    plot_backbone(second_largest_backbone,name,"second_largest_backbone",sensors)
+
 
 
 
@@ -332,8 +358,8 @@ def create_adjacency_list_with(disk,sensors,radius,name):
     color_dictionary = {}
     colored_points = color_points(smallest_last_vertex_ordering,points,sensors,colors,name,color_frequency_dictionary,color_dictionary)
 
-    backbones = find_backbones(color_dictionary,color_frequency_dictionary,name)
-    print (colored_points)
+    backbones = find_backbones(color_dictionary,color_frequency_dictionary,name,sensors)
+
 
 
 def create_adjacency_list():
@@ -364,8 +390,8 @@ def execute_benchmark_case(disk,sensors,average_degree,name):
 
 if __name__ == '__main__':
     #create_adjacency_list()
-    #execute_benchmark_case(False,20,3,"benchmark0")
-    execute_benchmark_case(False,1000,32,"benchmark1")
+    execute_benchmark_case(False,20,3,"benchmark0")
+    #execute_benchmark_case(False,1000,32,"benchmark1")
     #execute_benchmark_case(False,4000,64,"benchmark2")
     #execute_benchmark_case(False,16000,64,"benchmark3")
     #execute_benchmark_case(False,64000,64,"benchmark4")
