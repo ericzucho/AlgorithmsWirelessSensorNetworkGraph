@@ -120,6 +120,7 @@ def order_vertices_smallest_last(degree_list,name,points,min_degree):
     smallest_last_vertex_ordering = []
     degree_when_deleted = []
     original_degree = []
+    degree_when_deleted_dictionary = {}
     max_degree_when_deleted = -99999
     degree_list_ordered = collections.OrderedDict(sorted(degree_list.items()))
     complete_graph_found = False
@@ -147,7 +148,10 @@ def order_vertices_smallest_last(degree_list,name,points,min_degree):
         #Fill in the lists for the graph
         degree_when_deleted.append(point.get_degree())
         original_degree.append(point.original_degree)
-
+        if point.get_degree() in degree_when_deleted_dictionary:
+            degree_when_deleted_dictionary[point.get_degree()] += 1
+        else:
+            degree_when_deleted_dictionary[point.get_degree()] = 1
         if point.get_degree() > max_degree_when_deleted:
             max_degree_when_deleted = point.get_degree()
         #Insert it into the smallest last degree list
@@ -184,6 +188,13 @@ def order_vertices_smallest_last(degree_list,name,points,min_degree):
     plt.legend(loc='upper right')
     plt.savefig(name + '_sequential_coloring_plot.png')
 
+    degrees_when_deleted_list = np.arange(len(degree_when_deleted_dictionary))
+    plt.clf()
+    plt.bar(degrees_when_deleted_list, degree_when_deleted_dictionary.values(), align='center', width=0.5)
+    #plt.xticks(degrees_when_deleted_list, degree_when_deleted_dictionary.keys())
+    plt.ylim(0, max(degree_when_deleted_dictionary.values()) + 1)
+    plt.savefig(name + '_degree_when_deleted.png')
+
     print("Maximum degree when deleted: " + str(max_degree_when_deleted))
 
     return smallest_last_vertex_ordering
@@ -206,7 +217,7 @@ def color_points(smallest_last_vertex_ordering,original_point_adjacency_list,nod
     plt.clf()
     frequencies = np.arange(len(color_frequency_dictionary))
     plt.bar(frequencies, color_frequency_dictionary.values(), align='center', width=0.5)
-    plt.xticks(frequencies, color_frequency_dictionary.keys())
+    #plt.xticks(frequencies, color_frequency_dictionary.keys())
     plt.ylim(0, max(color_frequency_dictionary.values()) + 1)
     plt.savefig(name + '_color_frequency.png')
     print("Amount of colors: " + str(len(colors)))
@@ -373,7 +384,7 @@ def create_adjacency_list_with(disk,sensors,radius,name):
     fig.savefig(name + '_sensor_plot.png')
     plt.clf()
     plt.bar(frequencies, degree_frequency_dictionary.values(), align='center', width=0.5)
-    plt.xticks(frequencies, degree_frequency_dictionary.keys())
+    #plt.xticks(frequencies, degree_frequency_dictionary.keys())
     plt.ylim(0, max(degree_frequency_dictionary.values()) + 1)
     plt.savefig(name + '_degree_histogram.png')
     print_part_1_output(sensors,number_of_edges,radius,real_average_degree,min_degree,max_degree)
@@ -420,9 +431,9 @@ def execute_benchmark_case(disk,sensors,average_degree,name):
 if __name__ == '__main__':
     #create_adjacency_list()
     #execute_benchmark_case(False,20,3,"benchmark0")
-    execute_benchmark_case(False,1000,32,"benchmark1")
+    #execute_benchmark_case(False,1000,32,"benchmark1")
     #execute_benchmark_case(False,4000,64,"benchmark2")
-    #execute_benchmark_case(False,16000,64,"benchmark3")
+    execute_benchmark_case(False,16000,64,"benchmark3")
     #execute_benchmark_case(False,64000,64,"benchmark4")
     #execute_benchmark_case(False,64000,128,"benchmark5")
     #execute_benchmark_case(True,4000,64,"benchmark6")
