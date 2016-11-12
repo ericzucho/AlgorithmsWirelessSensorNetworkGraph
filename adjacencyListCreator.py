@@ -20,6 +20,7 @@ class Point(object):
         self.color = -1
         self.visited = 0 #For DPS algorithm
         self.taken = 0 #For smallest last ordering, finding clique size
+        self.original_degree = 0 #Do not modify, to be used for the sequential coloring plot.
 
     def __str__(self):
         return "Point %s: %s"%(self.ID,[p.get_ID() for p in self.adjacent_points])
@@ -61,8 +62,10 @@ class Point(object):
             if self.distance(point) <= radius:
                 self.adjacent_points.append(point)
                 self.degree += 1
+                self.original_degree += 1
                 point.adjacent_points.append(self)
                 point.degree += 1
+                point.original_degree += 1
 
     def get_color(self):
         return self.color
@@ -115,7 +118,8 @@ def print_part_1_output(sensors, number_of_edges, radius, real_average_degree,mi
 
 def order_vertices_smallest_last(degree_list,name,points,min_degree):
     smallest_last_vertex_ordering = []
-    degree_when_deleted_dictionary = {}
+    degree_when_deleted = []
+    original_degree = []
     max_degree_when_deleted = -99999
     degree_list_ordered = collections.OrderedDict(sorted(degree_list.items()))
     complete_graph_found = False
@@ -140,11 +144,10 @@ def order_vertices_smallest_last(degree_list,name,points,min_degree):
                 point_found = True
             else:
                 min_degree += 1
-        #Fill in the dictionary for the graph
-        if point.get_degree() in degree_when_deleted_dictionary:
-            degree_when_deleted_dictionary[point.get_degree()] += 1
-        else:
-            degree_when_deleted_dictionary[point.get_degree()] = 1
+        #Fill in the lists for the graph
+        degree_when_deleted.append(point.get_degree())
+        original_degree.append(point.original_degree)
+
         if point.get_degree() > max_degree_when_deleted:
             max_degree_when_deleted = point.get_degree()
         #Insert it into the smallest last degree list
@@ -172,12 +175,14 @@ def order_vertices_smallest_last(degree_list,name,points,min_degree):
 
 
     #Save plot
-    degrees_when_deleted = np.arange(len(degree_when_deleted_dictionary))
     plt.clf()
-    plt.bar(degrees_when_deleted, degree_when_deleted_dictionary.values(), align='center', width=0.5)
-    plt.xticks(degrees_when_deleted, degree_when_deleted_dictionary.keys())
-    plt.ylim(0, max(degree_when_deleted_dictionary.values()) + 1)
-    plt.savefig(name + '_degree_when_deleted.png')
+    fig = plt.figure()
+    ax1 = fig.add_subplot(111)
+    points_index = list(range(1, len(points) + 1))
+    plt.plot(points_index, degree_when_deleted[::-1], c='b', label='Degree when deleted')
+    plt.plot(points_index,original_degree[::-1],c='r', label='Original degree')
+    plt.legend(loc='upper right')
+    plt.savefig(name + '_sequential_coloring_plot.png')
 
     print("Maximum degree when deleted: " + str(max_degree_when_deleted))
 
