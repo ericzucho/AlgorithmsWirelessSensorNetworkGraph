@@ -18,6 +18,8 @@ class Point(object):
         self.degree = 0
         self.adjacent_points = []
         self.color = -1
+        self.visited = 0 #For DPS algorithm
+        self.taken = 0 #For smallest last ordering, finding clique size
 
     def __str__(self):
         return "Point %s: %s"%(self.ID,[p.get_ID() for p in self.adjacent_points])
@@ -111,14 +113,33 @@ def print_part_1_output(sensors, number_of_edges, radius, real_average_degree,mi
     print("Maximum degree: " + str(max_degree))
 
 
-def order_vertices_smallest_last(degree_list,name):
+def order_vertices_smallest_last(degree_list,name,points,min_degree):
     smallest_last_vertex_ordering = []
     degree_when_deleted_dictionary = {}
     max_degree_when_deleted = -99999
     degree_list_ordered = collections.OrderedDict(sorted(degree_list.items()))
+    complete_graph_found = False
+    amount_of_points = len(points)
     while len(degree_list_ordered) > 0:
+        if not complete_graph_found:
+            complete_graph = True
+            for point in points:
+                if point.taken == 1:
+                    continue
+                if len(point.adjacent_points) != amount_of_points - 1:
+                    complete_graph = False
+                    break
+            if complete_graph:
+                print("Terminal clique size: " + str(amount_of_points))
+                complete_graph_found = True
         #Get the first point from the ordered degree list.
-        point = degree_list_ordered.items()[0][1][0]
+        point_found = False
+        while not point_found:
+            if min_degree in degree_list_ordered:
+                point = degree_list_ordered[min_degree][0]
+                point_found = True
+            else:
+                min_degree += 1
         #Fill in the dictionary for the graph
         if point.get_degree() in degree_when_deleted_dictionary:
             degree_when_deleted_dictionary[point.get_degree()] += 1
@@ -129,22 +150,26 @@ def order_vertices_smallest_last(degree_list,name):
         #Insert it into the smallest last degree list
         smallest_last_vertex_ordering.append(point)
         #Delete it from the ordered degree list
-        del degree_list_ordered.items()[0][1][0]
+        del degree_list_ordered[min_degree][0]
         #Delete the whole key if it no longer has values
-        if len(degree_list_ordered.items()[0][1]) == 0:
-            del degree_list_ordered[point.get_degree()]
+        point.taken = 1
+        amount_of_points -= 1
         #Reduce de degree of all adjacent points by one.
         for adjacent_point in point.get_adjacent_points():
             degree_list_ordered[adjacent_point.get_degree()].remove(adjacent_point)
-            if len(degree_list_ordered[adjacent_point.get_degree()]) == 0:
-                del degree_list_ordered[adjacent_point.get_degree()]
             if adjacent_point.get_degree() - 1 in degree_list_ordered:
                 degree_list_ordered[adjacent_point.get_degree() - 1].append(adjacent_point)
             else:
                 degree_list_ordered[adjacent_point.get_degree() - 1] = []
                 degree_list_ordered[adjacent_point.get_degree() - 1].append(adjacent_point)
             adjacent_point.degree -= 1
+            if adjacent_point.get_degree() < min_degree:
+                min_degree = adjacent_point.get_degree()
             adjacent_point.adjacent_points.remove(point)
+        for amount in degree_list_ordered.items():
+            if len(amount[1]) == 0:
+                del degree_list_ordered[amount[0]]
+
 
     #Save plot
     degrees_when_deleted = np.arange(len(degree_when_deleted_dictionary))
@@ -203,13 +228,12 @@ def depth_first_search(points,initial_point_id,seen=None,path=None):
 
     seen.append(initial_point_id)
 
-    paths = []
     for adjacent_point in point_object.adjacent_points:
         if adjacent_point.get_ID() not in seen:
-            t_path = path + [adjacent_point]
-            paths.append(tuple(t_path))
-            paths.extend(depth_first_search(points, adjacent_point.get_ID(), seen, t_path))
-    return paths
+            path.append(adjacent_point)
+            path = depth_first_search(points, adjacent_point.get_ID(), seen, path)
+    return path
+
 
 def plot_backbone(backbone,problem_name,backbone_name,sensors):
     plt.clf()
@@ -254,7 +278,7 @@ def find_backbones(color_dictionary,color_frequency_dictionary,name,sensors):
         for j, (color2, color2frequency) in enumerate(sorted_colors[:4]):
             if color1 == color2:
                 continue
-            if color2 > color1:
+            if i > j:
                 continue
             subgraph = []
             for point in color_dictionary[color1]:
@@ -273,8 +297,8 @@ def find_backbones(color_dictionary,color_frequency_dictionary,name,sensors):
                 subgraph.append(point_copy)
             all_backbones = []
             for start_possibility in subgraph:
-                for path in depth_first_search(subgraph, start_possibility.get_ID()):
-                    all_backbones.append(path)
+                path = depth_first_search(subgraph, start_possibility.get_ID())
+                all_backbones.append(path)
             largest_backbone_this_iteration  = max(all_backbones, key=lambda l: len(l))
             if len(largest_backbone_this_iteration) > largest_backbone_size:
                 second_largest_backbone_size = largest_backbone_size
@@ -349,7 +373,7 @@ def create_adjacency_list_with(disk,sensors,radius,name):
     plt.savefig(name + '_degree_histogram.png')
     print_part_1_output(sensors,number_of_edges,radius,real_average_degree,min_degree,max_degree)
 
-    smallest_last_vertex_ordering = order_vertices_smallest_last(degree_list,name)
+    smallest_last_vertex_ordering = order_vertices_smallest_last(degree_list,name,points,min_degree)
     for point in points:
         point.adjacent_points = []
         point.set_adjacent_points_and_degree(points, radius)
@@ -390,8 +414,8 @@ def execute_benchmark_case(disk,sensors,average_degree,name):
 
 if __name__ == '__main__':
     #create_adjacency_list()
-    execute_benchmark_case(False,20,3,"benchmark0")
-    #execute_benchmark_case(False,1000,32,"benchmark1")
+    #execute_benchmark_case(False,20,3,"benchmark0")
+    execute_benchmark_case(False,1000,32,"benchmark1")
     #execute_benchmark_case(False,4000,64,"benchmark2")
     #execute_benchmark_case(False,16000,64,"benchmark3")
     #execute_benchmark_case(False,64000,64,"benchmark4")
